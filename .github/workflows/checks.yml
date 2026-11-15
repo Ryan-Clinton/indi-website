@@ -38,6 +38,9 @@ jobs:
 
       - name: Build site
         run: npm run build
+        env:
+          # The device search reads the indi-3rdparty file list from the GitHub API at build time
+          GITHUB_TOKEN: ${{ github.token }}
 
       - name: Check links inside the site
         run: node scripts/check-links.mjs dist
