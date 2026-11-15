@@ -32,6 +32,12 @@ include /etc/nginx/indilib/legacy-locations.conf;
 Remove any existing `location / { ... }` from that server block; `legacy-locations.conf` has its own.
 Then `sudo nginx -t && sudo systemctl reload nginx`.
 
+## Device search for other sites
+
+`legacy-locations.conf` also lets other websites read `/devices.json` and `/embed/` (CORS),
+so they can embed the "Is my device supported?" box. See `public/embed/device-search.js`.
+After changing it, copy it to `/etc/nginx/indilib/` again and reload nginx.
+
 ## Old images and files
 
 Other sites and old forum posts link straight to old files, like `https://indilib.org/images/...`.
