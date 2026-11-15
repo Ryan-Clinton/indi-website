@@ -117,6 +117,17 @@ const stories = (await latestTutorials(5)).filter((t) => t.id !== LEAD).slice(0,
         <div><p class="eyebrow">Supported devices</p><h2>Find the driver for your gear</h2></div>
         <a class="more" href="https://drivers.indilib.org">Full driver catalog</a>
       </div>
+      <!-- Shareable: /#supported jumps here, /?device=Canon+600D#supported also shows the answer -->
+      <div class="finder" id="supported">
+        <label for="dev-q">Is my device supported?</label>
+        <div class="finder-field">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+          <input id="dev-q" type="search" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="dev-list" autocomplete="off" spellcheck="false" placeholder="Type a model, like Canon 600D, ASI2600MC or EQ6-R">
+          <ul id="dev-list" role="listbox" aria-label="Matching devices" hidden></ul>
+        </div>
+        <div id="dev-answer" aria-live="polite"></div>
+        <p class="finder-note" id="dev-note">Cameras, DSLRs, mounts, focusers, filter wheels, domes and more.</p>
+      </div>
       <div class="devices">
         <a class="dev" href="https://drivers.indilib.org/mounts"><svg viewBox="0 0 24 24"><path d="M5 20h14M12 20v-6M8 20l4-6 4 6"/><rect x="6" y="5" width="12" height="5" rx="1" transform="rotate(-20 12 7.5)"/></svg>Mounts</a>
         <a class="dev" href="https://drivers.indilib.org/cameras"><svg viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="12" rx="2"/><circle cx="12" cy="13" r="3.5"/><path d="M8 7l1.5-2h5L16 7"/></svg>Cameras</a>
@@ -301,4 +312,158 @@ const stories = (await latestTutorials(5)).filter((t) => t.id !== LEAD).slice(0,
       note.hidden = true;
     }
   })();
+</script>
+
+<script>
+  // ---------- Device search: is my device supported? Reads /devices.json on first use ----------
+  type Entry = { n: string; k: string; d: string; a: string[]; words: string[]; re?: RegExp };
+  const input = document.getElementById("dev-q") as HTMLInputElement | null;
+  const list = document.getElementById("dev-list") as HTMLUListElement | null;
+  const answer = document.getElementById("dev-answer");
+  const note = document.getElementById("dev-note");
+  if (input && list && answer && note) {
+    const FORUM = "https://forum.indilib.org";
+    const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+    const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;");
+    let entries: Entry[] = [];
+    let loading: Promise<void> | undefined;
+    let shown: Entry[] = [];
+    let active = -1;
+    let timer = 0;
+
+    const load = () => (loading ??= fetch("/devices.json")
+      .then((r) => { if (!r.ok) throw new Error(String(r.status)); return r.json(); })
+      .then((data: { updated: string; devices: [string, string, string, string[]][]; families: { n: string; k: string; d: string; re: string }[] }) => {
+        const make = (n: string, k: string, d: string, a: string[], re?: RegExp): Entry => {
+          const hay = norm([n, ...a].join(" "));
+          const w = hay.split(" ");
+          // Neighbor words joined too, so Z6II finds "Z6 II"
+          return { n, k, d, a, words: [...new Set([...w, ...w.slice(1).map((x, i) => w[i] + x)])], re };
+        };
+        entries = [
+          ...data.families.map((f) => make(f.n, f.k, f.d, [], new RegExp(f.re))),
+          ...data.devices.map(([n, k, d, a]) => make(n, k, d, a)),
+        ];
+        const dslr = data.devices.filter((r) => r[1].startsWith("DSLR")).length;
+        note.textContent = `${data.devices.length.toLocaleString("en-US")} devices, including ${dslr} DSLR and mirrorless cameras. List updated ${data.updated}.`;
+      })
+      .catch(() => { loading = undefined; note.textContent = "The device list could not be loaded. Please try again, or use the driver catalog below."; }));
+
+    // How well a piece of the query fits one word of the name: 0 the whole word, 1 the start of a word,
+    // 2 a longer form of a model number in the name (CEM40EC finds CEM40, AM5N finds AM5), or no fit
+    function fit(e: Entry, piece: string): number | undefined {
+      let best: number | undefined;
+      for (const h of e.words) {
+        const s = h === piece ? 0 : h.startsWith(piece) ? 1 : h.length >= 3 && /\d/.test(h) && piece.startsWith(h) ? 2 : undefined;
+        if (s !== undefined && (best === undefined || s < best)) best = s;
+      }
+      return best;
+    }
+    // Every query word must fit the start of a name word. Neighbors may be joined, so "a7 iii" finds A7III.
+    function score(e: Entry, qw: string[]): number | undefined {
+      let total = 0;
+      for (let i = 0; i < qw.length;) {
+        let step = 0;
+        for (let j = qw.length; j > i && !step; j--) {
+          const s = fit(e, qw.slice(i, j).join(""));
+          if (s !== undefined) { total += s; step = j - i; }
+        }
+        if (!step) return undefined;
+        i += step;
+      }
+      return total;
+    }
+    function search(q: string): Entry[] {
+      const qn = norm(q);
+      if (!qn) return [];
+      const qw = qn.split(" ");
+      const scored: [number, Entry][] = [];
+      for (const e of entries) {
+        // Lower is better: family rules first, then the closest words, then shorter names
+        const s = e.re?.test(qn) ? -1 : score(e, qw);
+        if (s !== undefined) scored.push([s + e.n.length / 1000, e]);
+      }
+      return scored.sort((a, b) => a[0] - b[0]).slice(0, 8).map((s) => s[1]);
+    }
+
+    function close() { list!.hidden = true; list!.innerHTML = ""; input!.setAttribute("aria-expanded", "false"); input!.removeAttribute("aria-activedescendant"); active = -1; }
+    function render() {
+      if (!shown.length) return close();
+      list!.innerHTML = shown.map((e, i) => {
+        const also = e.a.length ? `<small>Also ${esc(e.a.slice(0, 3).join(", "))}</small>` : "";
+        return `<li role="option" id="dev-opt-${i}" aria-selected="${i === active}"><span><b>${esc(e.n)}</b>${also}</span><em>${esc(e.k)}</em></li>`;
+      }).join("");
+      list!.hidden = false;
+      input!.setAttribute("aria-expanded", "true");
+      if (active >= 0) input!.setAttribute("aria-activedescendant", `dev-opt-${active}`); else input!.removeAttribute("aria-activedescendant");
+    }
+    // Keep the address bar shareable: ?device=<name>#supported opens with the same answer
+    function share(device: string) {
+      const url = device ? `?device=${encodeURIComponent(device.trim()).replace(/%20/g, "+")}#supported` : `${location.pathname}#supported`;
+      history.replaceState(null, "", url);
+    }
+    function supported(e: Entry) {
+      close();
+      // A family answers for the model that was typed (EQ6-R), so keep that text and link to it
+      const typed = input!.value.trim();
+      const label = e.re && typed ? typed : e.n;
+      const covers = e.re ? ` It is covered by: ${esc(e.n)}.` : "";
+      if (!e.re || !typed) input!.value = e.n;
+      share(e.re && typed ? typed : e.n);
+      answer!.innerHTML = `<div class="answer yes"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7"/></svg><div><b>Supported</b><p>${esc(label)} works with INDI.${covers} In your INDI client, choose the <strong>${esc(e.d)}</strong> driver.</p></div></div>`;
+    }
+    function notSupported(q: string) {
+      close();
+      share(q);
+      answer!.innerHTML = `<div class="answer no"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg><div><b>Not supported</b><p>We could not find “${esc(q.trim())}” in the INDI device list. Think this is wrong? <a href="${FORUM}">Ask on the forum</a>.</p></div></div>`;
+    }
+    async function update() {
+      const q = input!.value;
+      answer!.innerHTML = "";
+      clearTimeout(timer);
+      if (!norm(q)) { shown = []; if (location.search) share(""); return close(); }
+      await load();
+      if (input!.value !== q) return;
+      shown = search(q);
+      active = -1;
+      render();
+      // No match at all: answer after a short pause, once the visitor stops typing
+      if (!shown.length && norm(q).length >= 3 && entries.length) timer = window.setTimeout(() => notSupported(q), 600);
+    }
+
+    input.addEventListener("focus", () => { load(); });
+    input.addEventListener("input", update);
+    input.addEventListener("keydown", (ev) => {
+      if (ev.key === "ArrowDown" || ev.key === "ArrowUp") {
+        if (!shown.length) return;
+        ev.preventDefault();
+        active = (active + (ev.key === "ArrowDown" ? 1 : -1) + shown.length) % shown.length;
+        render();
+      } else if (ev.key === "Enter") {
+        ev.preventDefault();
+        if (shown.length) supported(shown[Math.max(active, 0)]);
+        else if (norm(input.value) && entries.length) { clearTimeout(timer); notSupported(input.value); }
+      } else if (ev.key === "Escape") close();
+    });
+    // mousedown, not click, so the choice lands before the input loses focus
+    list.addEventListener("mousedown", (ev) => {
+      const li = (ev.target as HTMLElement).closest("li");
+      if (!li) return;
+      ev.preventDefault();
+      supported(shown[Number(li.id.replace("dev-opt-", ""))]);
+    });
+    input.addEventListener("blur", () => setTimeout(close, 100));
+
+    // Opened from a shared link
+    const asked = new URLSearchParams(location.search).get("device");
+    if (asked && norm(asked)) {
+      input.value = asked;
+      load().then(() => {
+        if (!entries.length) return;
+        const found = search(asked);
+        if (found.length) supported(found[0]); else notSupported(asked);
+        document.getElementById("supported")?.scrollIntoView();
+      });
+    }
+  }
 </script>
