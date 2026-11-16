@@ -36,6 +36,7 @@
   var script = document.currentScript;
   var BASE = script && script.src ? script.src : location.href;
   var FORUM = "https://forum.indilib.org";
+  var NOTE = "Cameras, DSLRs, mounts, focusers, filter wheels, domes and more.";
   var LIST = "https://ekoslive.com/api/equipments/indi-devices";
 
   var CSS = [
@@ -98,8 +99,7 @@
     }
     var entries = data.families.map(function (f) { return make(f.n, f.k, f.d, [], new RegExp(f.re)); })
       .concat(data.devices.map(function (r) { return make(r[0], r[1], r[2], r[3]); }));
-    var dslr = data.devices.filter(function (r) { return r[1].indexOf("DSLR") === 0; }).length;
-    return { entries: entries, count: data.devices.length, dslr: dslr, updated: data.updated };
+    return { entries: entries };
   }
 
   // How well a piece of the query fits one word of the name: 0 the whole word, 1 the start of a word,
@@ -165,7 +165,7 @@
         (label ? "" : ' aria-label="Is my device supported?"') + ' placeholder="' + esc(placeholder) + '">' +
         '<ul id="' + id + '-list" role="listbox" aria-label="Matching devices" hidden></ul></div>' +
         '<div class="out" aria-live="polite"></div>' +
-        '<p class="note">Cameras, DSLRs, mounts, focusers, filter wheels, domes and more.</p></div>';
+        '<p class="note">' + NOTE + "</p></div>";
       this.id_ = id;
       this.input = root.querySelector("input");
       this.listbox = root.querySelector("ul");
@@ -205,9 +205,10 @@
     load() {
       var self = this;
       return loadList(this.src).then(function (list) {
+        // No device count: the list does not hold every device INDI supports,
+        // so a total would understate it.
         self.list = list;
-        self.note.textContent = list.count.toLocaleString("en-US") + " devices, including " + list.dslr +
-          " DSLR and mirrorless cameras. List updated " + list.updated + ".";
+        self.note.textContent = NOTE;
       }, function () {
         self.note.textContent = "The device list could not be loaded. Please try again later.";
       });
