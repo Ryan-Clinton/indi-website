@@ -34,8 +34,10 @@ Then `sudo nginx -t && sudo systemctl reload nginx`.
 
 ## Device search for other sites
 
-`legacy-locations.conf` also lets other websites read `/devices.json` and `/embed/` (CORS),
+`legacy-locations.conf` also lets other websites read `/embed/` (CORS),
 so they can embed the "Is my device supported?" box. See `public/embed/device-search.js`.
+The box reads its device list from EkosLive (`https://ekoslive.com/api/equipments/indi-devices`);
+the old `/devices.json` redirects there.
 After changing it, copy it to `/etc/nginx/indilib/` again and reload nginx.
 
 ## Old images and files
