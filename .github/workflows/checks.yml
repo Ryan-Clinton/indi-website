@@ -38,9 +38,6 @@ jobs:
 
       - name: Build site
         run: npm run build
-        env:
-          # The device search reads the indi-3rdparty file list from the GitHub API at build time
-          GITHUB_TOKEN: ${{ github.token }}
 
       - name: Check links inside the site
         run: node scripts/check-links.mjs dist
@@ -98,11 +95,16 @@ jobs:
       - name: Check the device search allows other sites
         run: |
           for p in /devices.json /embed/device-search.js; do
-            curl -fsSI "http://localhost:8080$p" | grep -qi '^access-control-allow-origin: \*' || {
+            curl -sSI "http://localhost:8080$p" | grep -qi '^access-control-allow-origin: \*' || {
               echo "::error::$p is missing Access-Control-Allow-Origin"
               exit 1
             }
           done
+          # The list itself is served by EkosLive
+          curl -sSI http://localhost:8080/devices.json | grep -qi '^location: https://ekoslive.com/api/equipments/indi-devices' || {
+            echo "::error::/devices.json does not redirect to the EkosLive device list"
+            exit 1
+          }
 
       - name: nginx error log
         if: failure()

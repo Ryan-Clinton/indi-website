@@ -11,7 +11,7 @@
  *   theme        "dark" (default) or "light"
  *   label        heading above the box; label="" hides it
  *   placeholder  text in the empty box
- *   src          the device list, default /devices.json on the site this script comes from
+ *   src          the device list, default the EkosLive list (https://ekoslive.com/api/equipments/indi-devices)
  *   forum        link shown with "Not supported", default https://forum.indilib.org
  *   share        keep ?device=<name> in the address bar, and answer it when the page opens
  *
@@ -23,7 +23,8 @@
  * After each answer the element fires "indi-device-result" with
  * detail { query, supported, device, kind, driver }.
  *
- * The device list is rebuilt with every indilib.org build from the INDI driver lists and libgphoto2.
+ * The device list comes from EkosLive, the one source for it: its equipment catalogue, every INDI
+ * driver (read from indi and indi-3rdparty each week) and the DSLRs libgphoto2 can drive.
  */
 (function () {
   "use strict";
@@ -32,6 +33,7 @@
   var script = document.currentScript;
   var BASE = script && script.src ? script.src : location.href;
   var FORUM = "https://forum.indilib.org";
+  var LIST = "https://ekoslive.com/api/equipments/indi-devices";
 
   var CSS = [
     ":host { display: block; font: var(--ids-font, inherit); color: var(--ids-ink, #f2f2f2);",
@@ -148,7 +150,7 @@
       var root = this.attachShadow({ mode: "open" });
       var label = this.hasAttribute("label") ? this.getAttribute("label") : "Is my device supported?";
       var placeholder = this.getAttribute("placeholder") || "Type a model, like Canon 600D, ASI2600MC or EQ6-R";
-      this.src = new URL(this.getAttribute("src") || "/devices.json", BASE).href;
+      this.src = new URL(this.getAttribute("src") || LIST, BASE).href;
       this.forum = this.getAttribute("forum") || FORUM;
       root.innerHTML = "<style>" + CSS + "</style>" +
         '<div class="wrap">' +
