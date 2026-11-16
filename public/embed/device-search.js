@@ -13,6 +13,9 @@
  *   placeholder  text in the empty box
  *   src          the device list, default the EkosLive list (https://ekoslive.com/api/equipments/indi-devices)
  *   forum        link shown with "Not supported", default https://forum.indilib.org
+ *   product      what the device works with, default "INDI" ("Canon 600D works with INDI.")
+ *   client       where the driver is chosen, default "your INDI client"
+ *                ("In your INDI client, choose the Canon DSLR driver.")
  *   share        keep ?device=<name> in the address bar, and answer it when the page opens
  *
  * Colors and fonts: set these CSS variables on the element, for example
@@ -152,6 +155,8 @@
       var placeholder = this.getAttribute("placeholder") || "Type a model, like Canon 600D, ASI2600MC or EQ6-R";
       this.src = new URL(this.getAttribute("src") || LIST, BASE).href;
       this.forum = this.getAttribute("forum") || FORUM;
+      this.product = this.getAttribute("product") || "INDI";
+      this.client = this.getAttribute("client") || "your INDI client";
       root.innerHTML = "<style>" + CSS + "</style>" +
         '<div class="wrap">' +
         (label ? '<label for="' + id + '-q">' + esc(label) + "</label>" : "") +
@@ -253,8 +258,8 @@
       var covers = e.re ? " It is covered by: " + esc(e.n) + "." : "";
       if (!e.re || !typed) this.input.value = e.n;
       this.share(name);
-      this.out.innerHTML = '<div class="answer yes">' + ICON_YES + "<div><b>Supported</b><p>" + esc(name) + " works with INDI." + covers +
-        " In your INDI client, choose the <strong>" + esc(e.d) + "</strong> driver.</p></div></div>";
+      this.out.innerHTML = '<div class="answer yes">' + ICON_YES + "<div><b>Supported</b><p>" + esc(name) + " works with " + esc(this.product) + "." + covers +
+        " In " + esc(this.client) + ", choose the <strong>" + esc(e.d) + "</strong> driver.</p></div></div>";
       this.report(typed || e.n, e);
     }
 
@@ -262,7 +267,7 @@
       this.close();
       this.share(q);
       this.out.innerHTML = '<div class="answer no">' + ICON_NO + "<div><b>Not supported</b><p>We could not find “" + esc(q.trim()) +
-        '” in the INDI device list. Think this is wrong? <a href="' + esc(this.forum) + '">Ask on the forum</a>.</p></div></div>';
+        '” in the ' + esc(this.product) + ' device list. Think this is wrong? <a href="' + esc(this.forum) + '">Ask on the forum</a>.</p></div></div>';
       this.report(q.trim(), null);
     }
 
